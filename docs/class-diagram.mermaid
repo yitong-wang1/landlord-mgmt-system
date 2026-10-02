@@ -1,0 +1,108 @@
+classDiagram
+    direction LR
+
+    class Tenant {
+        +string id
+        +string name
+        +string idCardEnc
+        +string idCardMasked
+        +string phone
+        +PaymentCycle paymentCycle
+        +number depositMonths
+        +DepositType depositType
+        +boolean depositDeductibleOnExit
+        +string~?~ idCardPhotoId
+        +string~?~ roomId
+        +Date createdAt
+        +Date updatedAt
+        +void maskIdCard()
+    }
+
+    class Room {
+        +string id
+        +string name
+        +number monthlyRent
+        +RoomStatus status
+        +string~?~ tenantId
+        +string[] photoIds
+        +Date createdAt
+    }
+
+    class FeeType {
+        +string id
+        +string name
+        +FeeCategory category
+        +boolean isBuiltin
+        +string~?~ unit
+        +number~?~ unitPrice
+    }
+
+    class MeterRecord {
+        +string id
+        +string roomId
+        +string month
+        +number~?~ prevReading
+        +number~?~ currReading
+        +number usage
+        +Date recordedAt
+    }
+
+    class HeatingFee {
+        +string id
+        +string roomId
+        +string tenantId
+        +number year
+        +HeatingStatus status
+        +number amount
+        +number paidAmount
+        +Date~?~ paidDate
+    }
+
+    class Payment {
+        +string id
+        +string tenantId
+        +string roomId
+        +string billMonth
+        +number amount
+        +string~?~ category
+        +Date paidAt
+        +string~?~ method
+        +string~?~ note
+    }
+
+    class Bill {
+        +string id
+        +string tenantId
+        +string roomId
+        +string month
+        +BillItem[] items
+        +number totalReceivable
+        +number totalPaid
+        +number outstanding
+        +BillStatus status
+        +Date generatedAt
+    }
+
+    class BillItem {
+        +string feeTypeId
+        +string feeName
+        +number amount
+        +string~?~ periodCovered
+        +string~?~ note
+    }
+
+    class Photo {
+        +string id
+        +Blob blob
+        +string mimeType
+        +Date createdAt
+    }
+
+    Tenant "1" --> "0..1" Room : 占用(MVP 1:1, 可扩展 1:N)
+    Room "1" --> "0..*" Photo : photoIds
+    Room "1" --> "0..*" MeterRecord : 抄表
+    Room "1" --> "0..*" HeatingFee : 供暖
+    Tenant "1" --> "0..*" Payment : 缴费/押金
+    Tenant "1" --> "0..*" Bill : 月度账单
+    Bill "1" *-- "1..*" BillItem : 含明细
+    BillItem ..> FeeType : 引用

@@ -1,0 +1,95 @@
+%% ① 新增租户（OCR 录入流程）
+sequenceDiagram
+    actor U as 房东
+    participant F as TenantForm
+    participant C as useCamera
+    participant O as useOCR/idCardOCR
+    participant T as tesseract.js
+    participant S as tenantStore
+    participant R as repository
+    participant L as localStore
+    participant P as photoDB
+    participant K as crypto
+
+    U->>F: 点击"新增租户"
+    U->>C: 拍照/上传证件照
+    C->>P: saveBlob(imageBlob)
+    P-->>C: photoId
+    C-->>F: 预览照片 + photoId
+    U->>O: 触发 OCR 识别
+    O->>T: recognize(imageBlob, lang=chi_sim)
+    T-->>O: rawText
+    O->>O: parseName + parseIdCard(rawText)
+    O-->>F: 回填 name / idCard(明文草稿)
+    F-->>U: 展示识别结果, 提示"请核对"
+    U->>F: 人工核对/修正 姓名、身份证号、手机号、缴费周期、押金
+    F->>K: encrypt(idCard)
+    K-->>F: idCardEnc
+    F->>F: maskIdCard(idCard) → idCardMasked
+    U->>F: 提交
+    F->>S: addTenant(payload{idCardEnc,idCardMasked,idCardPhotoId,...})
+    S->>R: create("tenant", entity)
+    R->>L: setItem("tenants", [...])
+    L-->>R: ok
+    R-->>S: savedEntity
+    S-->>F: 成功
+    F-->>U: 跳转租户列表, Toast"保存成功"
+
+%% ② 录入用电量并生成当月账单
+sequenceDiagram
+    actor U as 房东
+    participant M as MeterRecordForm
+    participant FS as feeStore
+    participant BE as billingEngine
+    participant BG as billGenerator
+    participant BS as billStore
+    participant R as repository
+
+    U->>M: 选择房间 + 月份, 录入 上期/本期读数(或直填用量)
+    M->>M: computeUsage(prev,curr) 或 直填
+    U->>M: 保存
+    M->>FS: saveMeterRecord({roomId,month,usage})
+    FS->>R: create("meterRecord", rec)
+    R-->>FS: ok
+    U->>BS: 点击"生成/刷新 当月账单"
+    BS->>R: getTenantByRoom(roomId)
+    BS->>R: getFeeTypes()
+    BS->>R: getMeterRecords(roomId,month)
+    BS->>R: getHeatingFees(tenantId,month)
+    BS->>R: getPayments(tenantId,month)
+    BS->>BE: computeMonthlyBill(ctx)
+    BE->>BE: 租金(按周期/预存抵扣) + 电费(用量×单价) + 供暖费 + 自定义费用
+    BE-->>BG: BillItem[]
+    BG->>BG: 聚合 totalReceivable, 比对 totalPaid → outstanding
+    BG->>BS: upsertBill(bill)
+    BS->>R: create/update("bill", bill)
+    R-->>BS: ok
+    BS-->>U: 展示账单: 应收/已缴/欠费
+
+%% ③ 导出/导入备份
+sequenceDiagram
+    actor U as 房东
+    participant SP as SettingsPage
+    participant BK as backup
+    participant R as repository
+    participant P as photoDB
+    participant L as localStore
+
+    U->>SP: 点击"导出备份"
+    SP->>BK: exportAll()
+    BK->>R: getAllEntities()
+    BK->>P: getAllBlobs()
+    P-->>BK: Photo[]{id,blob}
+    BK->>BK: blob→base64, 组装 {version,exportedAt,data,photos}
+    BK-->>SP: JSON string
+    SP->>SP: 浏览器下载 landlord-backup-YYYYMMDD.json
+    SP-->>U: Toast"导出成功"
+
+    Note over U,SP: 导入流程
+    U->>SP: 选择备份文件
+    SP->>BK: importAll(fileJSON)
+    BK->>BK: 校验 version/schema
+    BK->>L: 覆盖写入各实体
+    BK->>P: base64→blob, 批量写回
+    BK-->>SP: 成功
+    SP-->>U: 刷新页面, Toast"恢复成功"

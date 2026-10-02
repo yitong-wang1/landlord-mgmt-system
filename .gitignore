@@ -1,0 +1,24 @@
+node_modules
+dist
+dist-verify
+dist-*
+dist-ssr
+android/app/src/main/assets/public
+*.local
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+.vite
+
+# OTA 发布产物（由 scripts/publish-ota.mjs 生成）
+dist.zip
+dist.zip.sha256
+
+# 测试打包产物（由 node qa/run.cjs 生成）
+qa/.bundle.cjs
+qa/.proof.cjs
+
+# tesseract 离线语言包体积大且按需下载，不入库（worker/wasm 已入库）
+public/tesseract/lang/*.traineddata.gz
