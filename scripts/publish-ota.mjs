@@ -144,7 +144,42 @@ async function main() {
   console.log(`  ✓ sha256    ${sha}`);
 
   if (DRY_RUN) {
-    console.log('\n▸ --dry-run：跳过上传。产物已生成于项目根目录。');
+    // 手动发布模式：不碰 token，只把包准备好并打印可直接照做的指引
+
+    // 防错：该 tag 若已存在，说明版本号没升，手机端不会收到更新
+    let tagExists = false;
+    if (repo) {
+      try {
+        const res = await fetch(`https://api.github.com/repos/${repo}/releases/tags/${tag}`, {
+          headers: {
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'landlord-mgmt-ota-publisher',
+          },
+        });
+        tagExists = res.ok;
+      } catch {
+        /* 离线或限流则跳过检查 */
+      }
+    }
+
+    const relUrl = `https://github.com/${repo || '你的用户名/你的仓库名'}/releases/new`;
+    console.log('\n════════ 手动发布指引（无需 token）════════');
+    if (tagExists) {
+      console.log(`⚠️  ${tag} 这个版本在 GitHub 上【已经存在】！`);
+      console.log('    同一版本号再发一次，手机端不会收到更新（因为它不比当前版本新）。');
+      console.log('    请先执行：npm version patch   然后重新运行本命令。');
+      console.log('────────────────────────────────');
+    }
+    console.log(`1. 打开：${relUrl}`);
+    console.log(`2. Tag 填：${tag}   ← 必须比手机上已装的版本号大，否则不会触发更新`);
+    console.log(`3. Title 随意，例如：房东管理系统 ${tag}`);
+    console.log('4. 把下面两个文件拖进页面底部 “Attach binaries” 区域：');
+    console.log(`   ${ZIP}`);
+    console.log(`   ${SHA_FILE}`);
+    console.log('5. 点绿色的 “Publish release”');
+    console.log('\n完成后：手机 App 下次启动会自动检测并更新；');
+    console.log('也可在 App 内 设置 → 软件更新 → 检查更新 手动触发。');
+    console.log('\n提示：想发下一个版本，先执行 npm version patch 再跑本命令。');
     return;
   }
   if (!repo) {

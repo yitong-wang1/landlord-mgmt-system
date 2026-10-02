@@ -186,18 +186,18 @@ adb install -r -d android/app/build/outputs/apk/debug/app-debug.apk
 
 ### 一次性配置
 
-1. **建一个 GitHub 仓库**（公开即可，用于存放更新包），把本项目推送上去。
+1. **建一个 GitHub 仓库**（必须 **Public**；私有仓库需 token 才能读 Release，OTA 会失效），把本项目推送上去。
 2. 复制配置模板并填写：
    ```bash
    cp .env.example .env
    ```
-   编辑 `.env`：
+   编辑 `.env`（只有 `VITE_OTA_REPO` 是必填）：
    ```ini
-   VITE_OTA_REPO=你的用户名/你的仓库名      # App 端据此检查更新
+   VITE_OTA_REPO=你的用户名/你的仓库名      # App 端据此检查更新（必填）
    VITE_OTA_ASSET=dist.zip
-   GITHUB_TOKEN=ghp_xxxxxxxxxxxx          # 仅发布脚本使用，不会打进 App
+   GITHUB_TOKEN=                          # 仅「自动发布」需要，手动发布可留空
    ```
-   `GITHUB_TOKEN` 需具备该仓库的 **Contents 读写**权限（细粒度 token 勾 `Contents: Read and write`，或经典 token 勾 `repo`）。`.env` 已被 `.gitignore` 忽略。
+   `.env` 已被 `.gitignore` 忽略。**注意**：`GITHUB_TOKEN` 没有 `VITE_` 前缀，因此不会被 Vite 注入前端产物（只有 `VITE_` 开头的变量才会暴露给客户端）。
 3. **重新构建并同步**（把 OTA 配置打进 App）：
    ```bash
    npm run build
@@ -209,17 +209,32 @@ adb install -r -d android/app/build/outputs/apk/debug/app-debug.apk
 
 ### 发布一次更新
 
-1. 改代码后，**提升版本号**（版本号来自 `package.json`）：
+**方式一：手动发布（默认，无需 token）**
+
+1. 改完代码后提升版本号（版本号来自 `package.json`，必须**大于手机上已装的版本**才会触发更新）：
    ```bash
    npm version patch     # 1.0.0 → 1.0.1
    ```
-2. 发布：
+2. 打包（会构建 + 生成 `dist.zip` 与 `dist.zip.sha256`，并打印上传指引）：
    ```bash
-   npm run ota:publish          # 构建 + 打包 + 上传到 GitHub Releases
-   npm run ota:pack             # 只打包不上传（--dry-run，用于本地检查）
+   npm run ota:pack
    ```
-   脚本会：构建 → 打包 `dist.zip` → 计算 sha256 → 创建 Release `v1.0.1` → 上传 `dist.zip` 与 `dist.zip.sha256` 两个附件。
-3. 手机 App **下次启动时自动检查**最新 Release，发现新版本就下载并应用（应用会重启一次）。也可在 **设置 → 软件更新 → 检查更新** 手动触发。
+3. 按终端打印的指引操作：打开
+   `https://github.com/你的用户名/你的仓库名/releases/new`
+   → Tag 填 `v1.0.1` → 把 `dist.zip`、`dist.zip.sha256` 拖进 **Attach binaries** → **Publish release**。
+
+> 脚本会自动检查该 tag 是否已存在；若已存在会警告你版本号没升（同版本重发不会触发更新）。
+
+**方式二：自动发布（需一次性配置 `GITHUB_TOKEN`）**
+
+在 https://github.com/settings/tokens 生成经典 token（勾 `repo`）填进 `.env`，之后：
+```bash
+npm version patch
+npm run ota:publish
+```
+脚本会：构建 → 打包 `dist.zip` → 计算 sha256 → 创建 Release → 上传两个附件（走 GitHub REST API，不依赖 `gh` 命令）。
+
+**更新生效**：手机 App **下次启动时自动检查**最新 Release，发现新版本就下载并应用（应用会重启一次）。也可在 App 内 **设置 → 软件更新 → 检查更新** 手动触发。
 
 ### 说明与限制
 
